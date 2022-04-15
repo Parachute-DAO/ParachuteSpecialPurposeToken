@@ -23,16 +23,18 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
     uint public assetDecimals;
     address public paymentPair;
     address public assetPair;
-    address payable public weth = payable(0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c);
+    address payable public weth;
     uint public c = 0;
-    address public uniFactory = 0xBCfCcbde45cE874adCB698cC183deBcF17952812;
+    address public uniFactory;
     bool public cashCloseOn;
     
 
-    constructor(address _asset, address _pymtCurrency, address _spt) {
+    constructor(address _asset, address _pymtCurrency, address _spt, address payable _weth, address _uniFactory) {
         asset = _asset;
         pymtCurrency = _pymtCurrency;
         spt = _spt;
+        weth = _weth;
+        uniFactory = _uniFactory;
         assetDecimals = Decimals(_asset).decimals();
         paymentPair = IUniswapV2Factory(uniFactory).getPair(weth, pymtCurrency);
         assetPair = IUniswapV2Factory(uniFactory).getPair(weth, asset);
@@ -89,6 +91,19 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         depositPymt(asset, msg.sender, _assetAmt);
         calls[c++] = Call(payable(msg.sender), _assetAmt, _strike, _totalPurch, _price, _expiry, false, true, payable(msg.sender), false);
         emit NewAsk(c -1, _assetAmt, _strike, _price, _expiry);
+    }
+
+    function bulkNewAsk(uint[] memory _assetAmt, uint[] memory _strike, uint[] memory _price, uint[] memory _expiry) public onlyOwner {
+        require(_assetAmt.length == _strike.length && _strike.length == _price.length &&  _strike.length== _expiry.length);
+        uint totalAmt;
+        for (uint i = 0; i < _assetAmt.length; i++) {
+            totalAmt += _assetAmt[i];
+            uint _totalPurch = (_assetAmt[i] * _strike[i]) / (10 ** assetDecimals);
+            calls[c++] = Call(payable(msg.sender), _assetAmt[i], _strike[i], _totalPurch, _price[i], _expiry[i], false, true, payable(msg.sender), false);
+            emit NewAsk(c -1, _assetAmt[i], _strike[i], _price[i], _expiry[i]);
+        }
+        /// @dev bulk deposit the total amount
+        depositPymt(asset, msg.sender, totalAmt);
     }
 
     function cancelNewAsk(uint _c) public nonReentrant onlyOwner {
@@ -238,6 +253,4 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
     event OptionExercised(uint _i, bool cashClosed);
     event OptionReturned(uint _i);
     event OptionCancelled(uint _i);
-
-
 }
