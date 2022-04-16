@@ -61,10 +61,91 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
 
     
     mapping (uint => Call) public calls;
+    /// @dev enumerations
+    uint256[] public newCalls;
+    mapping(uint256 => uint256) public newCallsIndex;
+    uint256[] public openCalls;
+    mapping(uint256 => uint256) public openCallsIndex;
 
+    /// @dev balance function for long open calls
+    mapping(address => uint256) private balances;
+    /// @dev mappings for the long positions of the calls
+    mapping(address => mapping(uint256 => uint256)) private ownedCalls;
+    mapping(uint256 => uint256) private ownedCallsIndex;
 
+    function balanceOf(address _owner) public view returns (uint256) {
+        return balances[_owner];
+    }
 
-    //internal and setup functions
+    function callofOwnerByIndex(address _owner, uint callIndex) public view returns (uint256) {
+        return ownedCalls[_owner][callIndex];
+    }
+
+    function getAllOwnersCalls(address _owner) public view returns (Call[] memory _calls) {
+        require(balanceOf(_owner) > 0, "no owned calls");
+        for (uint i = 0; i < balanceOf(_owner); i++) {
+            uint callId = callofOwnerByIndex(_owner, i);
+            _calls[i] = calls[callId];
+        }
+    }
+    
+    function addToNewCallsArray(uint _c) internal {
+        newCallsIndex[_c] = newCalls.length;
+        newCalls.push(_c);
+    }
+
+    function removeFromNewCallsArray(uint _c) internal {
+        uint lastCallIndex = newCalls.length - 1;
+        uint callIndex = newCallsIndex[_c];
+        uint lastCallId = newCalls[lastCallIndex];
+        /// @dev updates the lastcall into the slot of the to be deleted call
+        newCalls[callIndex] = lastCallId;
+        newCallsIndex[lastCallId] = callIndex;
+        /// @dev now we have overwritten the call to be removed, so we can simply delete and pop the duplicate entry 
+        /// in the last position of the array
+        delete newCallsIndex[_c];
+        newCalls.pop();
+    }
+
+    function addToOpenCallsArray(uint _c) internal {
+        openCallsIndex[_c] = openCalls.length;
+        openCalls.push(_c);
+    }
+
+    function removeFromOpenCallsArray(uint _c) internal {
+        uint lastCallIndex = openCalls.length - 1;
+        uint callIndex = openCallsIndex[_c];
+        uint lastCallId = openCalls[lastCallIndex];
+        /// @dev updates the lastcall into the slot of the to be deleted call
+        openCalls[callIndex] = lastCallId;
+        openCallsIndex[lastCallId] = callIndex;
+        /// @dev now we have overwritten the call to be removed, so we can simply delete and pop the duplicate entry 
+        /// in the last position of the array
+        delete openCallsIndex[_c];
+        openCalls.pop();
+    }
+
+    function addCallToOwnerIndex(address _to, uint _c) internal {
+        uint bal = balances[_to];
+        /// @dev puts the newest call at the last index mapping
+        ownedCalls[_to][bal] = _c;
+        ownedCallsIndex[_c] = bal;
+        balances[_to]++; // add one more to the balance
+    }
+
+    function removeCallOwner(address _from, uint _c) internal {
+        balances[_from]--;
+        uint lastCallIndex = balances[_from];
+        uint callIndex = ownedCallsIndex[_c];
+        if (lastCallIndex != callIndex) {
+            uint lastCallId = ownedCalls[_from][lastCallIndex];
+            //update the mapping of the last one to the one to be deleted;
+            ownedCalls[_from][_c] = lastCallId;
+            ownedCallsIndex[lastCallId] = callIndex;
+        }
+        delete ownedCallsIndex[_c];
+        delete ownedCalls[_from][lastCallIndex];
+    }
 
     receive() external payable {    
     }
@@ -89,6 +170,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         uint balCheck = IERC20(asset).balanceOf(msg.sender);
         require(balCheck >= _assetAmt, "not enough to sell this call option");
         depositPymt(asset, msg.sender, _assetAmt);
+        addToNewCallsArray(c);
         calls[c++] = Call(payable(msg.sender), _assetAmt, _strike, _totalPurch, _price, _expiry, false, true, payable(msg.sender), false);
         emit NewAsk(c -1, _assetAmt, _strike, _price, _expiry);
     }
@@ -99,6 +181,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         for (uint i = 0; i < _assetAmt.length; i++) {
             totalAmt += _assetAmt[i];
             uint _totalPurch = (_assetAmt[i] * _strike[i]) / (10 ** assetDecimals);
+            addToNewCallsArray(c);
             calls[c++] = Call(payable(msg.sender), _assetAmt[i], _strike[i], _totalPurch, _price[i], _expiry[i], false, true, payable(msg.sender), false);
             emit NewAsk(c -1, _assetAmt[i], _strike[i], _price[i], _expiry[i]);
         }
@@ -114,6 +197,8 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         call.tradeable = false;
         call.exercised = true;
         withdrawPymt(asset, call.short, call.assetAmt);
+        /// @dev remove from the newCalls array
+        removeFromNewCallsArray(_c);
         emit OptionCancelled(_c);
     }
 
@@ -132,6 +217,9 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         call.open = true;
         call.long = payable(msg.sender);
         call.tradeable = false;
+        removeFromNewCallsArray(_c);
+        addToOpenCallsArray(_c);
+        addCallToOwnerIndex(msg.sender, _c);
         emit NewOptionBought(_c);
     }
 
@@ -148,6 +236,8 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         call.tradeable = false;
         transferPymt(pymtCurrency, msg.sender, call.short, call.totalPurch);   
         withdrawPymt(asset, call.long, call.assetAmt);
+        removeFromOpenCallsArray(_c);
+        removeCallOwner(msg.sender, _c);
         emit OptionExercised(_c, false);
     }
 
@@ -172,7 +262,8 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         } else {
             withdrawPymt(asset, call.long, call.assetAmt);
         }
-        
+        removeFromOpenCallsArray(_c);
+        removeCallOwner(msg.sender, _c);
         emit OptionExercised(_c, true);
     }
 
@@ -185,6 +276,8 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         call.open = false;
         call.exercised = true;
         withdrawPymt(asset, call.short, call.assetAmt);
+        removeFromOpenCallsArray(_c);
+        removeCallOwner(call.long, _c);
         emit OptionReturned(_c);
     }
 
