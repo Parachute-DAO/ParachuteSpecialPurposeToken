@@ -5,7 +5,7 @@ import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 
 contract Special_Purpose_Token is Ownable, ERC20 {
     
-    constructor (string memory _name, string memory _symbol) ERC20(_name, _symbol) {}
+    constructor () ERC20("SPT", "SPT") {}
     function mintTo(address[] memory accounts, uint256[] memory amounts) public onlyOwner {
         uint256 acctLength = accounts.length;
         uint256 amtLength = amounts.length;
