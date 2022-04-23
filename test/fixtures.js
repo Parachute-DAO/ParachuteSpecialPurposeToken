@@ -35,8 +35,8 @@ async function pckFactoryFixture(provider, [wallet]) {
 
 async function pckPairs(provider, [wallet]) {
     const pckFactory = await pckFactoryFixture(provider, [wallet]);
-    const par = await tokenFixture(provider, [wallet], 'parachute', 'par', constants.E18_10000);
-    const usdc = await tokenFixture(provider, [wallet], 'usdc', 'usdc', constants.E18_10000);
+    const par = await tokenFixture(provider, [wallet], 'parachute', 'par', constants.E18_100000);
+    const usdc = await tokenFixture(provider, [wallet], 'usdc', 'usdc', constants.E18_100000);
     const weth = await WETH.deployWeth(wallet)
     await pckFactory.createPair(par.address, weth.address);
     const parPairAddress = await  pckFactory.getPair(par.address, weth.address);
@@ -46,32 +46,39 @@ async function pckPairs(provider, [wallet]) {
     const usdcPair = new ethers.Contract(usdcPairAddress, PancakePair.abi, wallet);
     await par.approve(parPairAddress, constants.E18_10000);
     await usdc.approve(usdcPairAddress, constants.E18_10000);
-    // await par.transfer(parPairAddress, constants.E18_10000);
-    // await weth.transfer(parPairAddress, constants.E18_10000);
-    // await parPair.mint(wallet.address);
+    await par.transfer(parPairAddress, constants.E18_10000);
+    await weth.deposit({value: constants.E18_10000});
+    await weth.transfer(parPairAddress, constants.E18_10000);
+    await parPair.mint(wallet.address);
 
-    // await usdc.transfer(usdcPairAddress, constants.E18_1000);
-    // await weth.transfer(usdcPairAddress, constants.E18_1000);
-    // await usdcPair.mint(wallet.address);
+    await usdc.transfer(usdcPairAddress, constants.E18_1000);
+    await weth.deposit({value: constants.E18_1000});
+    await weth.transfer(usdcPairAddress, constants.E18_1000);
+    await usdcPair.mint(wallet.address);
     return {
         pckFactory,
         parPair,
         usdcPair,
         par,
         usdc,
+        weth,
     }
 }
 
 async function sptCallFixture(provider, [wallet, otherA, otherB]) {
-    const weth = await WETH.deployWeth(wallet);
     const spt = await sptFixture(provider, [wallet, otherA, otherB]);
     const pancakeSetup = await pckPairs(provider, [wallet]);
+    const weth = pancakeSetup.weth;
     const par = pancakeSetup.par;
     const usdc = pancakeSetup.usdc;
+    await usdc.mint(otherA.address, constants.E18_10000);
+    await usdc.mint(otherB.address, constants.E18_10000);
     const sptCall = await deployContract(wallet, SPTCall, [par.address, usdc.address, spt.address, weth.address, pancakeSetup.pckFactory.address]);
-    await pancakeSetup.par.approve(sptCall.address, constants.E18_10000);
-    await pancakeSetup.usdc.approve(sptCall.address, constants.E18_10000);
+    await par.approve(sptCall.address, constants.E18_10000);
+    await usdc.approve(sptCall.address, constants.E18_10000);
     await spt.approve(sptCall.address, constants.E18_10000);
+    await usdc.connect(otherA).approve(sptCall.address, constants.E18_10000);
+    await usdc.connect(otherB).approve(sptCall.address, constants.E18_10000);
     return {
         par: pancakeSetup.par,
         parPair: pancakeSetup.parPair,

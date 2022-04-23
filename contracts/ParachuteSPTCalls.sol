@@ -64,8 +64,20 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
     /// @dev enumerations
     uint256[] public newCalls;
     mapping(uint256 => uint256) public newCallsIndex;
-    uint256[] public openCalls;
-    mapping(uint256 => uint256) public openCallsIndex;
+    // uint256[] public openCalls;
+    // mapping(uint256 => uint256) public openCallsIndex;
+
+    function getAllNewCalls() public view returns (Call[] memory) {
+        Call[] memory _calls = new Call[](newCalls.length);
+        for (uint i = 0; i < newCalls.length; i++) {
+            //returns the callId on the given index
+            uint callId = newCallsIndex[i];
+            //add to array
+            //Call memory call = calls[callId];
+            _calls[i] = calls[callId];
+        }
+        return _calls;
+    }
 
     /// @dev balance function for long open calls
     mapping(address => uint256) private balances;
@@ -81,12 +93,14 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         return ownedCalls[_owner][callIndex];
     }
 
-    function getAllOwnersCalls(address _owner) public view returns (Call[] memory _calls) {
+    function getAllOwnersCalls(address _owner) public view returns (Call[] memory) {
         require(balanceOf(_owner) > 0, "no owned calls");
+        Call[] memory _calls = new Call[](balanceOf(_owner));
         for (uint i = 0; i < balanceOf(_owner); i++) {
             uint callId = callofOwnerByIndex(_owner, i);
             _calls[i] = calls[callId];
         }
+        return _calls;
     }
     
     function addToNewCallsArray(uint _c) internal {
@@ -107,23 +121,23 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         newCalls.pop();
     }
 
-    function addToOpenCallsArray(uint _c) internal {
-        openCallsIndex[_c] = openCalls.length;
-        openCalls.push(_c);
-    }
+    // function addToOpenCallsArray(uint _c) internal {
+    //     openCallsIndex[_c] = openCalls.length;
+    //     openCalls.push(_c);
+    // }
 
-    function removeFromOpenCallsArray(uint _c) internal {
-        uint lastCallIndex = openCalls.length - 1;
-        uint callIndex = openCallsIndex[_c];
-        uint lastCallId = openCalls[lastCallIndex];
-        /// @dev updates the lastcall into the slot of the to be deleted call
-        openCalls[callIndex] = lastCallId;
-        openCallsIndex[lastCallId] = callIndex;
-        /// @dev now we have overwritten the call to be removed, so we can simply delete and pop the duplicate entry 
-        /// in the last position of the array
-        delete openCallsIndex[_c];
-        openCalls.pop();
-    }
+    // function removeFromOpenCallsArray(uint _c) internal {
+    //     uint lastCallIndex = openCalls.length - 1;
+    //     uint callIndex = openCallsIndex[_c];
+    //     uint lastCallId = openCalls[lastCallIndex];
+    //     /// @dev updates the lastcall into the slot of the to be deleted call
+    //     openCalls[callIndex] = lastCallId;
+    //     openCallsIndex[lastCallId] = callIndex;
+    //     /// @dev now we have overwritten the call to be removed, so we can simply delete and pop the duplicate entry 
+    //     /// in the last position of the array
+    //     delete openCallsIndex[_c];
+    //     openCalls.pop();
+    // }
 
     function addCallToOwnerIndex(address _to, uint _c) internal {
         uint bal = balances[_to];
@@ -218,7 +232,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         call.long = payable(msg.sender);
         call.tradeable = false;
         removeFromNewCallsArray(_c);
-        addToOpenCallsArray(_c);
+        //addToOpenCallsArray(_c);
         addCallToOwnerIndex(msg.sender, _c);
         emit NewOptionBought(_c);
     }
@@ -236,7 +250,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         call.tradeable = false;
         transferPymt(pymtCurrency, msg.sender, call.short, call.totalPurch);   
         withdrawPymt(asset, call.long, call.assetAmt);
-        removeFromOpenCallsArray(_c);
+        //removeFromOpenCallsArray(_c);
         removeCallOwner(msg.sender, _c);
         emit OptionExercised(_c, false);
     }
@@ -262,7 +276,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         } else {
             withdrawPymt(asset, call.long, call.assetAmt);
         }
-        removeFromOpenCallsArray(_c);
+        //removeFromOpenCallsArray(_c);
         removeCallOwner(msg.sender, _c);
         emit OptionExercised(_c, true);
     }
@@ -276,7 +290,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         call.open = false;
         call.exercised = true;
         withdrawPymt(asset, call.short, call.assetAmt);
-        removeFromOpenCallsArray(_c);
+        //removeFromOpenCallsArray(_c);
         removeCallOwner(call.long, _c);
         emit OptionReturned(_c);
     }
