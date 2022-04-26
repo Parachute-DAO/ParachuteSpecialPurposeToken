@@ -1,5 +1,6 @@
 require('@nomiclabs/hardhat-etherscan');
 require('@nomiclabs/hardhat-waffle');
+require('hardhat-deploy');
 const networks = require('./networks');
 const api = require('./apiKeys');
 
@@ -23,11 +24,15 @@ module.exports = {
   networks: {
     bsc: {
       url: networks.bsc.url,
-    }
+    },
+    rinkeby: {
+      url: networks.rinkeby.url,
+    },
   },
   etherscan: {
     apiKey: {
       bsc: api.bsc,
+      rinkeby: api.rinkeby,
     }
   }
 };

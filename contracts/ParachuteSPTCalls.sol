@@ -79,6 +79,22 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         return _calls;
     }
 
+    function getNewCallsByDetails(uint256 _assetAmount, uint256 _strike, uint256 _price, uint256 _expiry) public view returns (int256[] memory) {
+        int256[] memory _calls = new int256[](newCalls.length);
+        for (uint i = 0; i < newCalls.length; i++) {
+            //returns the callId on the given index
+            uint callId = newCallsIndex[i];
+            Call memory call = calls[callId];
+            //check the conditions if met
+            if (call.assetAmt == _assetAmount && call.strike == _strike && call.price == _price && call.expiry == _expiry) {
+                _calls[i] = int256(callId);
+            } else {
+                _calls[i] = -1;
+            }
+        }
+        return _calls;
+    }
+
     /// @dev balance function for long open calls
     mapping(address => uint256) private balances;
     /// @dev mappings for the long positions of the calls
