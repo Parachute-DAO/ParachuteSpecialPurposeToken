@@ -24,7 +24,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
     address public paymentPair;
     address public assetPair;
     address payable public weth;
-    uint public c = 0;
+    uint public c = 1;
     address public uniFactory;
     bool public cashCloseOn;
     
@@ -60,7 +60,7 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
     }
 
     
-    mapping (uint => Call) public calls;
+    mapping (uint256 => Call) public calls;
     /// @dev enumerations
     uint256[] public newCalls;
     mapping(uint256 => uint256) public newCallsIndex;
@@ -69,9 +69,9 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
 
     function getAllNewCalls() public view returns (Call[] memory) {
         Call[] memory _calls = new Call[](newCalls.length);
-        for (uint i = 0; i < newCalls.length; i++) {
-            //returns the callId on the given index
-            uint callId = newCallsIndex[i];
+        for (uint256 i = 0; i < newCalls.length; i++) {
+            //returns the callId at the index
+            uint256 callId = newCalls[i];
             //add to array
             //Call memory call = calls[callId];
             _calls[i] = calls[callId];
@@ -79,17 +79,17 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
         return _calls;
     }
 
-    function getNewCallsByDetails(uint256 _assetAmount, uint256 _strike, uint256 _price, uint256 _expiry) public view returns (int256[] memory) {
-        int256[] memory _calls = new int256[](newCalls.length);
-        for (uint i = 0; i < newCalls.length; i++) {
+    function getNewCallsByDetails(uint256 _assetAmount, uint256 _strike, uint256 _price, uint256 _expiry) public view returns (uint256[] memory) {
+        uint256[] memory _calls = new uint256[](newCalls.length);
+        for (uint256 i = 0; i < newCalls.length; i++) {
             //returns the callId on the given index
-            uint callId = newCallsIndex[i];
+            uint256 callId = newCalls[i];
             Call memory call = calls[callId];
             //check the conditions if met
             if (call.assetAmt == _assetAmount && call.strike == _strike && call.price == _price && call.expiry == _expiry) {
-                _calls[i] = int256(callId);
+                _calls[i] = callId;
             } else {
-                _calls[i] = -1;
+                _calls[i] = 0;
             }
         }
         return _calls;
@@ -112,63 +112,47 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
     function getAllOwnersCalls(address _owner) public view returns (Call[] memory) {
         require(balanceOf(_owner) > 0, "no owned calls");
         Call[] memory _calls = new Call[](balanceOf(_owner));
-        for (uint i = 0; i < balanceOf(_owner); i++) {
-            uint callId = callofOwnerByIndex(_owner, i);
+        for (uint256 i = 0; i < balanceOf(_owner); i++) {
+            uint256 callId = callofOwnerByIndex(_owner, i);
             _calls[i] = calls[callId];
         }
         return _calls;
     }
     
-    function addToNewCallsArray(uint _c) internal {
-        newCallsIndex[_c] = newCalls.length;
+    function addToNewCallsArray(uint256 _c) internal {
         newCalls.push(_c);
+        newCallsIndex[_c] = newCalls.length - 1;
     }
 
-    function removeFromNewCallsArray(uint _c) internal {
-        uint lastCallIndex = newCalls.length - 1;
-        uint callIndex = newCallsIndex[_c];
-        uint lastCallId = newCalls[lastCallIndex];
+    function removeFromNewCallsArray(uint256 _c) internal {
+        uint256 lastCallIndex = newCalls.length - 1;
+        uint256 callIndex = newCallsIndex[_c];
+        uint256 lastCallId = newCalls[lastCallIndex];
         /// @dev updates the lastcall into the slot of the to be deleted call
         newCalls[callIndex] = lastCallId;
         newCallsIndex[lastCallId] = callIndex;
+        newCalls[lastCallIndex] = _c;
         /// @dev now we have overwritten the call to be removed, so we can simply delete and pop the duplicate entry 
         /// in the last position of the array
         delete newCallsIndex[_c];
         newCalls.pop();
     }
 
-    // function addToOpenCallsArray(uint _c) internal {
-    //     openCallsIndex[_c] = openCalls.length;
-    //     openCalls.push(_c);
-    // }
 
-    // function removeFromOpenCallsArray(uint _c) internal {
-    //     uint lastCallIndex = openCalls.length - 1;
-    //     uint callIndex = openCallsIndex[_c];
-    //     uint lastCallId = openCalls[lastCallIndex];
-    //     /// @dev updates the lastcall into the slot of the to be deleted call
-    //     openCalls[callIndex] = lastCallId;
-    //     openCallsIndex[lastCallId] = callIndex;
-    //     /// @dev now we have overwritten the call to be removed, so we can simply delete and pop the duplicate entry 
-    //     /// in the last position of the array
-    //     delete openCallsIndex[_c];
-    //     openCalls.pop();
-    // }
-
-    function addCallToOwnerIndex(address _to, uint _c) internal {
-        uint bal = balances[_to];
+    function addCallToOwnerIndex(address _to, uint256 _c) internal {
+        uint256 bal = balances[_to];
         /// @dev puts the newest call at the last index mapping
         ownedCalls[_to][bal] = _c;
         ownedCallsIndex[_c] = bal;
         balances[_to]++; // add one more to the balance
     }
 
-    function removeCallOwner(address _from, uint _c) internal {
+    function removeCallOwner(address _from, uint256 _c) internal {
         balances[_from]--;
-        uint lastCallIndex = balances[_from];
-        uint callIndex = ownedCallsIndex[_c];
+        uint256 lastCallIndex = balances[_from];
+        uint256 callIndex = ownedCallsIndex[_c];
         if (lastCallIndex != callIndex) {
-            uint lastCallId = ownedCalls[_from][lastCallIndex];
+            uint256 lastCallId = ownedCalls[_from][lastCallIndex];
             //update the mapping of the last one to the one to be deleted;
             ownedCalls[_from][_c] = lastCallId;
             ownedCallsIndex[lastCallId] = callIndex;
@@ -180,15 +164,15 @@ contract ParachuteSPTCalls is ReentrancyGuard, Ownable {
     receive() external payable {    
     }
 
-    function depositPymt(address _token, address _sender, uint _amt) internal {
+    function depositPymt(address _token, address _sender, uint256 _amt) internal {
         SafeERC20.safeTransferFrom(IERC20(_token), _sender, address(this), _amt);
     }
 
-    function withdrawPymt(address _token, address payable to, uint _amt) internal {
+    function withdrawPymt(address _token, address payable to, uint256 _amt) internal {
         SafeERC20.safeTransfer(IERC20(_token), to, _amt);
     }
 
-    function transferPymt(address _token, address from, address payable to, uint _amt) internal {
+    function transferPymt(address _token, address from, address payable to, uint256 _amt) internal {
         SafeERC20.safeTransferFrom(IERC20(_token), from, to, _amt);         
     
     }
