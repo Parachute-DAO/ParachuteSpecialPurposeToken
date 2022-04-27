@@ -7,6 +7,7 @@ module.exports = {
     E18_10000: '10000000000000000000000',
     E18_100000: '100000000000000000000000',
     IN_FIVE_MINS: (Math.round(Date.now() / 1000) + (5 * 60)).toString(),
+    IN_TEN_MINS: (Math.round(Date.now() / 1000) + (10 * 60)).toString(),
     IN_FIVE_SECS: (Math.round(Date.now() / 1000) + (5)).toString(),
     ZERO_ADDRESS: '0x0000000000000000000000000000000000000000',
 }

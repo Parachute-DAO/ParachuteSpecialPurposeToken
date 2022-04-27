@@ -48,7 +48,8 @@ describe('Parachute SPT Calls', async () => {
     });
 
     it('creates two new single asks', async () => {
-        let expiry = constants.IN_FIVE_MINS;
+        let expiry = constants.IN_TEN_MINS;
+        console.log(`in ten mins: ${expiry}`);
         let assetAmount = constants.E18_100;
         let strike = constants.E18_01;
         let price = constants.E18_10;
